@@ -1,4 +1,45 @@
 services:
+  keycloak-db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: ${KEYCLOAK_DB_NAME:-keycloak}
+      POSTGRES_USER: ${KEYCLOACK_DB_USER:-keycloack}
+      POSTGRES_PASSWORD: ${KEYCLOACK_DB_PASSWORD:-keycklock}
+    ports:
+      - "${KEYCLOACK_DB_PORT:-5434}:5432"
+    volumes:
+      - keycloak_data:/var/lib/postgresql/data
+    networks:
+    - e-learning-network
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.4.0
+    command: start-dev
+
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+
+      KC_DB: ${KEYCLOACK_DB:-postgres}
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/${KEYCLOAK_DB_NAME:-keycloak}
+      KC_DB_USERNAME: ${KEYCLOACK_DB_USER:-keycloack}
+      KC_DB_PASSWORD: ${KEYCLOACK_DB_PASSWORD:-keycklock}
+    ports:
+      - "127.0.0.1:8081:8080"
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
+    networks:
+      - e-learning-network
+    restart: unless-stopped
+
+
   postgres:
     image: postgres:17.5
     container_name: e-learning-db
@@ -6,7 +47,7 @@ services:
       POSTGRES_DB: ${DB_NAME:-elearning-db}
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
-      PGDATA: /var/lib/postgres/data/data
+      PGDATA: /var/lib/postgresql/data/data
     ports:
       - "${DB_PORT:-5432}:5432"
     volumes:
@@ -18,7 +59,10 @@ services:
 volumes:
   postgres_data:
     driver: local
+  keycloak_data:
+    driver: local
 
 networks:
   e-learning-network:
     driver: bridge
+
